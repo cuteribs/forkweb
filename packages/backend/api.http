@@ -1,0 +1,444 @@
+### ForkWeb API Testing
+### Use REST Client extension in VS Code to execute these requests
+
+@baseUrl = http://localhost:3001
+@contentType = application/json
+
+### Variables (update these with your actual values)
+@repoId = jnu1bi3lhpnmhagwvqh
+@repoPath = C:/git/eric/bingdaily
+@commitSha = abc123def456
+@branchName = feature-branch
+
+###############################################################################
+# Health Check
+###############################################################################
+
+### Get server health and cache stats
+GET {{baseUrl}}/api/health
+
+###############################################################################
+# Repositories
+###############################################################################
+
+### List all repositories
+GET {{baseUrl}}/api/repositories
+
+### Get repository by ID
+GET {{baseUrl}}/api/repositories/{{repoId}}
+
+### Add new repository
+POST {{baseUrl}}/api/repositories
+Content-Type: {{contentType}}
+
+{
+  "path": "{{repoPath}}"
+}
+
+### Add repository (example with real path)
+# POST {{baseUrl}}/api/repositories
+# Content-Type: {{contentType}}
+# 
+# {
+#   "path": "C:/git/eric/forkweb"
+# }
+
+### Refresh repository
+POST {{baseUrl}}/api/repositories/{{repoId}}/refresh
+
+### Remove repository
+DELETE {{baseUrl}}/api/repositories/{{repoId}}
+
+###############################################################################
+# Commits
+###############################################################################
+
+### Get commit history (all commits)
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits
+
+### Get commit history with pagination
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits?limit=10&skip=0
+
+### Get commit history for specific branch
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits?branch=main
+
+### Get commit history by author
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits?author=john@example.com
+
+### Get commit history for specific file
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits?path=src/index.ts
+
+### Get commit history with multiple filters
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits?branch=main&limit=20&skip=10&author=john@example.com
+
+### Get specific commit by SHA
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits/{{commitSha}}
+
+###############################################################################
+# Branches
+###############################################################################
+
+### List all branches
+GET {{baseUrl}}/api/repositories/{{repoId}}/branches
+
+### Create new branch
+POST {{baseUrl}}/api/repositories/{{repoId}}/branches
+Content-Type: {{contentType}}
+
+{
+  "name": "{{branchName}}",
+  "startPoint": "main",
+  "checkout": false
+}
+
+### Create and checkout new branch
+POST {{baseUrl}}/api/repositories/{{repoId}}/branches
+Content-Type: {{contentType}}
+
+{
+  "name": "feature-new",
+  "startPoint": "main",
+  "checkout": true
+}
+
+### Checkout existing branch
+POST {{baseUrl}}/api/repositories/{{repoId}}/checkout
+Content-Type: {{contentType}}
+
+{
+  "branch": "main"
+}
+
+### Checkout commit (detached HEAD)
+POST {{baseUrl}}/api/repositories/{{repoId}}/checkout
+Content-Type: {{contentType}}
+
+{
+  "commit": "{{commitSha}}"
+}
+
+### Create branch from current commit and checkout
+POST {{baseUrl}}/api/repositories/{{repoId}}/checkout
+Content-Type: {{contentType}}
+
+{
+  "branch": "hotfix-branch",
+  "createBranch": true
+}
+
+### Delete branch
+DELETE {{baseUrl}}/api/repositories/{{repoId}}/branches/{{branchName}}
+
+### Force delete branch
+DELETE {{baseUrl}}/api/repositories/{{repoId}}/branches/{{branchName}}?force=true
+
+###############################################################################
+# Working Directory Changes
+###############################################################################
+
+### Get repository status
+GET {{baseUrl}}/api/repositories/{{repoId}}/status
+
+### Get diff for all unstaged changes
+GET {{baseUrl}}/api/repositories/{{repoId}}/diff
+
+### Get diff for staged changes
+GET {{baseUrl}}/api/repositories/{{repoId}}/diff?staged=true
+
+### Get diff for specific file
+GET {{baseUrl}}/api/repositories/{{repoId}}/diff?path=src/index.ts
+
+### Get diff with custom context lines
+GET {{baseUrl}}/api/repositories/{{repoId}}/diff?path=src/index.ts&context=5
+
+### Get diff for staged file with context
+GET {{baseUrl}}/api/repositories/{{repoId}}/diff?path=src/index.ts&staged=true&context=10
+
+### Stage files
+POST {{baseUrl}}/api/repositories/{{repoId}}/stage
+Content-Type: {{contentType}}
+
+{
+  "files": ["src/index.ts", "README.md"]
+}
+
+### Stage single file
+POST {{baseUrl}}/api/repositories/{{repoId}}/stage
+Content-Type: {{contentType}}
+
+{
+  "files": ["src/index.ts"]
+}
+
+### Unstage files
+POST {{baseUrl}}/api/repositories/{{repoId}}/unstage
+Content-Type: {{contentType}}
+
+{
+  "files": ["src/index.ts", "README.md"]
+}
+
+### Unstage all files
+POST {{baseUrl}}/api/repositories/{{repoId}}/unstage
+Content-Type: {{contentType}}
+
+{
+  "files": ["."]
+}
+
+### Discard changes in files
+POST {{baseUrl}}/api/repositories/{{repoId}}/discard
+Content-Type: {{contentType}}
+
+{
+  "files": ["src/index.ts"]
+}
+
+### Create commit
+POST {{baseUrl}}/api/repositories/{{repoId}}/commit
+Content-Type: {{contentType}}
+
+{
+  "message": "feat: add new feature"
+}
+
+### Create commit with multiline message
+POST {{baseUrl}}/api/repositories/{{repoId}}/commit
+Content-Type: {{contentType}}
+
+{
+  "message": "feat: add new feature\n\nThis commit adds a new feature that...\n\nCloses #123"
+}
+
+### Amend last commit
+POST {{baseUrl}}/api/repositories/{{repoId}}/commit
+Content-Type: {{contentType}}
+
+{
+  "message": "feat: add new feature (updated)",
+  "amend": true
+}
+
+###############################################################################
+# Files
+###############################################################################
+
+### Get file tree (HEAD)
+GET {{baseUrl}}/api/repositories/{{repoId}}/tree
+
+### Get file tree for specific ref
+GET {{baseUrl}}/api/repositories/{{repoId}}/tree?ref=main
+
+### Get file tree for specific branch
+GET {{baseUrl}}/api/repositories/{{repoId}}/tree?ref=feature-branch
+
+### Get file tree for specific commit
+GET {{baseUrl}}/api/repositories/{{repoId}}/tree?ref={{commitSha}}
+
+### Get file tree for tag
+GET {{baseUrl}}/api/repositories/{{repoId}}/tree?ref=v1.0.0
+
+### Get file content (HEAD)
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=src/index.ts
+
+### Get file content for specific ref
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=src/index.ts&ref=main
+
+### Get file content from different branch
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=README.md&ref=feature-branch
+
+### Get file content from specific commit
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=package.json&ref={{commitSha}}
+
+###############################################################################
+# Remote Operations
+###############################################################################
+
+### Fetch from default remote (origin)
+POST {{baseUrl}}/api/repositories/{{repoId}}/fetch
+
+### Fetch from specific remote
+POST {{baseUrl}}/api/repositories/{{repoId}}/fetch?remote=upstream
+
+### Pull from remote (default: origin/current-branch)
+POST {{baseUrl}}/api/repositories/{{repoId}}/pull
+Content-Type: {{contentType}}
+
+{
+  "remote": "origin"
+}
+
+### Pull with rebase
+POST {{baseUrl}}/api/repositories/{{repoId}}/pull
+Content-Type: {{contentType}}
+
+{
+  "remote": "origin",
+  "branch": "main",
+  "rebase": true
+}
+
+### Pull specific branch
+POST {{baseUrl}}/api/repositories/{{repoId}}/pull
+Content-Type: {{contentType}}
+
+{
+  "remote": "origin",
+  "branch": "develop",
+  "rebase": false
+}
+
+### Push to remote (default: origin/current-branch)
+POST {{baseUrl}}/api/repositories/{{repoId}}/push
+Content-Type: {{contentType}}
+
+{
+  "remote": "origin"
+}
+
+### Push specific branch
+POST {{baseUrl}}/api/repositories/{{repoId}}/push
+Content-Type: {{contentType}}
+
+{
+  "remote": "origin",
+  "branch": "feature-branch"
+}
+
+### Force push
+POST {{baseUrl}}/api/repositories/{{repoId}}/push
+Content-Type: {{contentType}}
+
+{
+  "remote": "origin",
+  "branch": "main",
+  "force": true
+}
+
+###############################################################################
+# Common Workflows
+###############################################################################
+
+### Workflow 1: Add repository and get status
+# 1. Add repository
+POST {{baseUrl}}/api/repositories
+Content-Type: {{contentType}}
+
+{
+  "path": "C:/git/eric/forkweb"
+}
+
+### 2. Get status
+# GET {{baseUrl}}/api/repositories/{{repoId}}/status
+
+### 3. List branches
+# GET {{baseUrl}}/api/repositories/{{repoId}}/branches
+
+### 4. Get commit history
+# GET {{baseUrl}}/api/repositories/{{repoId}}/commits?limit=10
+
+
+### Workflow 2: Create feature branch and make changes
+# 1. Create new branch
+POST {{baseUrl}}/api/repositories/{{repoId}}/branches
+Content-Type: {{contentType}}
+
+{
+  "name": "feature/new-api",
+  "startPoint": "main",
+  "checkout": true
+}
+
+### 2. Check status after making changes
+# GET {{baseUrl}}/api/repositories/{{repoId}}/status
+
+### 3. Stage files
+# POST {{baseUrl}}/api/repositories/{{repoId}}/stage
+# Content-Type: {{contentType}}
+# 
+# {
+#   "files": ["src/api/routes.ts"]
+# }
+
+### 4. Commit changes
+# POST {{baseUrl}}/api/repositories/{{repoId}}/commit
+# Content-Type: {{contentType}}
+# 
+# {
+#   "message": "feat: add new API routes"
+# }
+
+### 5. Push to remote
+# POST {{baseUrl}}/api/repositories/{{repoId}}/push
+# Content-Type: {{contentType}}
+# 
+# {
+#   "remote": "origin",
+#   "branch": "feature/new-api"
+# }
+
+
+### Workflow 3: Review and merge
+# 1. Get commit history for branch
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits?branch=feature/new-api&limit=10
+
+### 2. Get diff for specific commit
+# GET {{baseUrl}}/api/repositories/{{repoId}}/commits/{{commitSha}}
+
+### 3. Checkout main
+# POST {{baseUrl}}/api/repositories/{{repoId}}/checkout
+# Content-Type: {{contentType}}
+# 
+# {
+#   "branch": "main"
+# }
+
+### 4. Merge (would be done via Git operations in the service layer)
+
+###############################################################################
+# Error Testing
+###############################################################################
+
+### Test 404 - Repository not found
+GET {{baseUrl}}/api/repositories/invalid-id
+
+### Test 400 - Invalid request (missing required field)
+POST {{baseUrl}}/api/repositories
+Content-Type: {{contentType}}
+
+{
+  "invalidField": "value"
+}
+
+### Test 400 - Invalid repository path
+POST {{baseUrl}}/api/repositories
+Content-Type: {{contentType}}
+
+{
+  "path": "/invalid/path/that/does/not/exist"
+}
+
+### Test 404 - Commit not found
+GET {{baseUrl}}/api/repositories/{{repoId}}/commits/invalidsha
+
+### Test 404 - File not found
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=nonexistent/file.txt
+
+### Test 400 - Missing required parameter
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob
+
+### Test 400 - Stage empty files array
+POST {{baseUrl}}/api/repositories/{{repoId}}/stage
+Content-Type: {{contentType}}
+
+{
+  "files": []
+}
+
+### Test 400 - Invalid commit message
+POST {{baseUrl}}/api/repositories/{{repoId}}/commit
+Content-Type: {{contentType}}
+
+{
+  "message": ""
+}
