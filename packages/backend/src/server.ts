@@ -84,4 +84,9 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
+process.on('SIGUSR2', () => {
+  logger.info('Nodemon restarting...');
+  // No need to exit, nodemon will restart the process
+});
+
 start();

@@ -5,9 +5,9 @@
 @contentType = application/json
 
 ### Variables (update these with your actual values)
-@repoId = jnu1bi3lhpnmhagwvqh
-@repoPath = C:/git/eric/bingdaily
-@commitSha = abc123def456
+@repoId = b6e3ytqp2l6mharlxza
+@repoPath = e:/git/dnv/SolutionPackage
+@commitSha = 96b4409
 @branchName = feature-branch
 
 ###############################################################################
@@ -38,7 +38,7 @@ Content-Type: {{contentType}}
 ### Add repository (example with real path)
 # POST {{baseUrl}}/api/repositories
 # Content-Type: {{contentType}}
-# 
+#
 # {
 #   "path": "C:/git/eric/forkweb"
 # }
@@ -239,7 +239,7 @@ GET {{baseUrl}}/api/repositories/{{repoId}}/tree?ref={{commitSha}}
 GET {{baseUrl}}/api/repositories/{{repoId}}/tree?ref=v1.0.0
 
 ### Get file content (HEAD)
-GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=src/index.ts
+GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=src/Authorization/UserManagement.Abstraction/IUser.cs
 
 ### Get file content for specific ref
 GET {{baseUrl}}/api/repositories/{{repoId}}/blob?path=src/index.ts&ref=main
@@ -355,7 +355,7 @@ Content-Type: {{contentType}}
 ### 3. Stage files
 # POST {{baseUrl}}/api/repositories/{{repoId}}/stage
 # Content-Type: {{contentType}}
-# 
+#
 # {
 #   "files": ["src/api/routes.ts"]
 # }
@@ -363,7 +363,7 @@ Content-Type: {{contentType}}
 ### 4. Commit changes
 # POST {{baseUrl}}/api/repositories/{{repoId}}/commit
 # Content-Type: {{contentType}}
-# 
+#
 # {
 #   "message": "feat: add new API routes"
 # }
@@ -371,7 +371,7 @@ Content-Type: {{contentType}}
 ### 5. Push to remote
 # POST {{baseUrl}}/api/repositories/{{repoId}}/push
 # Content-Type: {{contentType}}
-# 
+#
 # {
 #   "remote": "origin",
 #   "branch": "feature/new-api"
@@ -388,7 +388,7 @@ GET {{baseUrl}}/api/repositories/{{repoId}}/commits?branch=feature/new-api&limit
 ### 3. Checkout main
 # POST {{baseUrl}}/api/repositories/{{repoId}}/checkout
 # Content-Type: {{contentType}}
-# 
+#
 # {
 #   "branch": "main"
 # }

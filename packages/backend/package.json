@@ -4,7 +4,7 @@
   "private": true,
   "main": "./dist/server.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon --signal SIGTERM --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jest",
