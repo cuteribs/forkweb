@@ -1,18 +1,25 @@
 # ForkWeb - Git Web UI
 
-A lightweight, fast web-based Git client with Vue.js frontend and Node.js backend, designed to browse repositories, branches, commits, and changes through a system tray application.
+A lightweight, fast web-based Git client with Vue.js frontend and Node.js backend, designed to browse repositories, branches, commits, and changes.
+
+## 🎉 Status: **READY TO USE**
+
+Both frontend and backend are fully implemented and running:
+- **Backend**: http://localhost:3001 (Fastify API with 23 endpoints)
+- **Frontend**: http://localhost:5173 (Vue 3 + TailwindCSS)
+- **Build**: All packages build successfully
+- **Views**: Repository list, changes (with diff viewer), commits, branches, and file browser
 
 ## Features
 
 - 🚀 **Fast & Lightweight** - In-memory LRU caching with optional persistence
 - 📊 **Repository Management** - Add, browse, and manage multiple Git repositories
-- 📝 **Commit History** - Visual commit history with graph view
-- 🌿 **Branch Operations** - Create, delete, checkout, and merge branches
-- 📂 **File Browser** - Browse repository files and view content
+- 📝 **Commit History** - Paginated commit history with branch filtering
+- 🌿 **Branch Operations** - Create, delete, checkout branches
+- 📂 **File Browser** - Navigate file tree and view file contents
 - ⚡ **Real-time Updates** - WebSocket-based live repository updates
-- 🎨 **Modern UI** - Vue 3 with TypeScript and Tailwind CSS
+- 🎨 **Compact Dark UI** - Vue 3 with TypeScript and TailwindCSS (dense, responsive design)
 - 🔄 **Smart Caching** - Automatic cache invalidation based on file changes
-- 🖥️ **System Tray** - Background service with tray icon
 - 🔧 **Go-Ready** - Clean interfaces designed for future Go migration
 
 ## Architecture
