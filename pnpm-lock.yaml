@@ -84,6 +84,9 @@ importers:
       '@forkweb/shared':
         specifier: workspace:*
         version: link:../shared
+      '@vscode/codicons':
+        specifier: 0.0.41
+        version: 0.0.41
       '@vueuse/core':
         specifier: ^10.7.0
         version: 10.11.1(vue@3.5.22(typescript@5.9.3))
@@ -103,6 +106,12 @@ importers:
         specifier: ^4.2.5
         version: 4.6.3(vue@3.5.22(typescript@5.9.3))
     devDependencies:
+      '@iconify-json/codicon':
+        specifier: 1.2.31
+        version: 1.2.31
+      '@iconify/vue':
+        specifier: 5.0.0
+        version: 5.0.0(vue@3.5.22(typescript@5.9.3))
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.23
@@ -478,6 +487,17 @@ packages:
   '@fastify/static@6.12.0':
     resolution: {integrity: sha512-KK1B84E6QD/FcQWxDI2aiUCwHxMJBI1KeCUzm1BwYpPY1b742+jeKruGHP2uOluuM6OkBPI8CIANrXcCRtC2oQ==}
 
+  '@iconify-json/codicon@1.2.31':
+    resolution: {integrity: sha512-FXMyfeay4kfxLvzU3RQ4uOwXvy4oUUvKo/CihRg+fcnWLs/fFGjfVS3GouM9x1ra8xgpzCRSg7Vl2zGZm264nw==}
+
+  '@iconify/types@2.0.0':
+    resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
+
+  '@iconify/vue@5.0.0':
+    resolution: {integrity: sha512-C+KuEWIF5nSBrobFJhT//JS87OZ++QDORB6f2q2Wm6fl2mueSTpFBeBsveK0KW9hWiZ4mNiPjsh6Zs4jjdROSg==}
+    peerDependencies:
+      vue: '>=3'
+
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
@@ -801,6 +821,9 @@ packages:
 
   '@volar/typescript@2.4.15':
     resolution: {integrity: sha512-2aZ8i0cqPGjXb4BhkMsPYDkkuc2ZQ6yOpqwAuNwUoncELqoy5fRgOQtLR9gB0g902iS0NAkvpIzs27geVyVdPg==}
+
+  '@vscode/codicons@0.0.41':
+    resolution: {integrity: sha512-v6/8nx76zau3Joxjzi3eN/FVw+7jKBq4j7LTZY5FhFhq2g0OoFebZ3vRZbv/pUopGpbCnJJ4FOz+NzbjVsmoiw==}
 
   '@vue/compiler-core@3.5.22':
     resolution: {integrity: sha512-jQ0pFPmZwTEiRNSb+i9Ow/I/cHv2tXYqsnHKKyCQ08irI2kdF5qmYedmF8si8mA7zepUFmJ2hqzS8CQmNOWOkQ==}
@@ -2937,6 +2960,17 @@ snapshots:
       glob: 8.1.0
       p-limit: 3.1.0
 
+  '@iconify-json/codicon@1.2.31':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify/types@2.0.0': {}
+
+  '@iconify/vue@5.0.0(vue@3.5.22(typescript@5.9.3))':
+    dependencies:
+      '@iconify/types': 2.0.0
+      vue: 3.5.22(typescript@5.9.3)
+
   '@isaacs/cliui@8.0.2':
     dependencies:
       string-width: 5.1.2
@@ -3331,6 +3365,8 @@ snapshots:
       '@volar/language-core': 2.4.15
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
+
+  '@vscode/codicons@0.0.41': {}
 
   '@vue/compiler-core@3.5.22':
     dependencies:
