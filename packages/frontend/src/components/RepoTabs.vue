@@ -10,13 +10,13 @@
         : 'bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-750'"
     >
       <span class="truncate max-w-[150px]">{{ repo.name }}</span>
-      <button
+      <span
         @click.stop="$emit('unpin', repo.id)"
-        class="hover:text-red-400 transition-colors"
+        class="hover:text-red-400 transition-colors cursor-pointer"
         title="Unpin"
       >
         ✕
-      </button>
+      </span>
     </button>
     
     <button

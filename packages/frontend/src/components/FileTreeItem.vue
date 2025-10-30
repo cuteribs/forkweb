@@ -3,7 +3,7 @@
     class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-850 transition-colors border-b border-gray-800"
     :class="{ 'bg-gray-850': selected }"
   >
-    <span class="text-xs font-bold w-4" :class="statusColor">{{ statusChar }}</span>
+    <Icon :icon="statusIcon" :class="statusColor" />
     <span class="flex-1 text-sm truncate">{{ file.path }}</span>
     <button
       v-if="!staged"
@@ -11,7 +11,7 @@
       class="btn-ghost px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100"
       title="Stage"
     >
-      +
+      <Icon icon="codicon:add" />
     </button>
     <button
       v-if="staged"
@@ -19,13 +19,14 @@
       class="btn-ghost px-1.5 py-0.5 text-xs opacity-0 group-hover:opacity-100"
       title="Unstage"
     >
-      −
+      <Icon icon="codicon:remove" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Icon } from '@iconify/vue';
 import type { FileChange } from '@forkweb/shared';
 
 interface Props {
@@ -44,16 +45,16 @@ defineEmits<{
   unstage: [];
 }>();
 
-const statusChar = computed(() => {
+const statusIcon = computed(() => {
   const map: Record<string, string> = {
-    modified: 'M',
-    added: 'A',
-    deleted: 'D',
-    renamed: 'R',
-    copied: 'C',
-    untracked: '?',
+    modified: 'codicon:diff-modified',
+    added: 'codicon:diff-added',
+    deleted: 'codicon:diff-removed',
+    renamed: 'codicon:diff-renamed',
+    copied: 'codicon:file',
+    untracked: 'codicon:question',
   };
-  return map[props.file.status] || '?';
+  return map[props.file.status] || 'codicon:file';
 });
 
 const statusColor = computed(() => {

@@ -22,43 +22,50 @@
     <!-- Main Content Area -->
     <div class="flex-1 flex overflow-hidden">
       <div v-if="currentRepositoryId" class="flex-1 flex overflow-hidden">
-        <!-- Left Panel -->
-        <LeftPanel
-          :selected-item="selectedItem"
-          :changes-count="changesCount"
-          :local-branches="localBranches"
-          :remotes="remotes"
-          :tags="tags"
-          :stashes="stashes"
-          :submodules="submodules"
-          @select="handleSelectItem"
-          @checkout-branch="handleCheckoutBranch"
-        />
+        <!-- Left Panel + Right Panel with Resizer -->
+        <ResizablePanel direction="horizontal" :default-size="256" :min-size="200" :max-size="400">
+          <template #first>
+            <LeftPanel
+              :selected-item="selectedItem"
+              :selected-branch="selectedBranch"
+              :changes-count="changesCount"
+              :local-branches="localBranches"
+              :remote-branches="remoteBranches"
+              :remotes="remotes"
+              :tags="tags"
+              :stashes="stashes"
+              :submodules="submodules"
+              @select="handleSelectItem"
+              @view-branch="handleViewBranch"
+              @checkout-branch="handleCheckoutBranch"
+            />
+          </template>
 
-        <!-- Right Panel -->
-        <div class="flex-1 overflow-hidden">
-          <!-- Commit View -->
-          <CommitView
-            v-if="selectedItem === 'all-commits'"
-            :commits="commits"
-            :has-more="hasMoreCommits"
-            :current-branch="currentRepo?.currentBranch"
-            @load-more="loadMoreCommits"
-            @commit-selected="handleCommitSelected"
-          />
+          <template #second>
+            <!-- Commit View -->
+            <CommitView
+              v-if="selectedItem === 'all-commits'"
+              :commits="commits"
+              :has-more="hasMoreCommits"
+              :current-branch="currentRepo?.currentBranch"
+              :selected-commit-sha="selectedCommitSha"
+              @load-more="loadMoreCommits"
+              @commit-selected="handleCommitSelected"
+            />
 
-          <!-- Change View -->
-          <ChangeView
-            v-else-if="selectedItem === 'local-changes'"
-            :staged-files="stagedFiles"
-            :unstaged-files="unstagedFiles"
-            @stage="handleStage"
-            @unstage="handleUnstage"
-            @stage-all="handleStageAll"
-            @unstage-all="handleUnstageAll"
-            @commit="handleCommit"
-          />
-        </div>
+            <!-- Change View -->
+            <ChangeView
+              v-else-if="selectedItem === 'local-changes'"
+              :staged-files="stagedFiles"
+              :unstaged-files="unstagedFiles"
+              @stage="handleStage"
+              @unstage="handleUnstage"
+              @stage-all="handleStageAll"
+              @unstage-all="handleUnstageAll"
+              @commit="handleCommit"
+            />
+          </template>
+        </ResizablePanel>
       </div>
 
       <!-- Empty State -->
@@ -93,6 +100,39 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-4 right-4 z-50 space-y-2">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="card p-4 min-w-[300px] max-w-[500px] shadow-lg animate-slide-in"
+        :class="{
+          'border-l-4 border-red-500': toast.type === 'error',
+          'border-l-4 border-green-500': toast.type === 'success',
+          'border-l-4 border-blue-500': toast.type === 'info',
+        }"
+      >
+        <div class="flex items-start gap-3">
+          <Icon
+            :icon="toast.type === 'error' ? 'codicon:error' : toast.type === 'success' ? 'codicon:check' : 'codicon:info'"
+            class="text-lg flex-shrink-0 mt-0.5"
+            :class="{
+              'text-red-500': toast.type === 'error',
+              'text-green-500': toast.type === 'success',
+              'text-blue-500': toast.type === 'info',
+            }"
+          />
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm">{{ toast.title }}</div>
+            <div v-if="toast.message" class="text-sm text-muted mt-1">{{ toast.message }}</div>
+          </div>
+          <button @click="removeToast(toast.id)" class="text-muted hover:text-gray-300">
+            <Icon icon="codicon:close" />
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -102,18 +142,56 @@ import { useRepositoryStore } from '@/stores/repository';
 import { useWebSocketStore } from '@/stores/websocket';
 import { gitApi } from '@/api/git';
 import type { Commit, FileChange, Branch } from '@forkweb/shared';
+import { Icon } from '@iconify/vue';
 import TopToolbar from '@/components/TopToolbar.vue';
 import RepoTabs from '@/components/RepoTabs.vue';
 import LeftPanel from '@/components/LeftPanel.vue';
 import CommitView from '@/components/CommitView.vue';
 import ChangeView from '@/components/ChangeView.vue';
+import ResizablePanel from '@/components/ResizablePanel.vue';
 
 const repoStore = useRepositoryStore();
 const wsStore = useWebSocketStore();
 
 const showAddDialog = ref(false);
 const newRepoPath = ref('');
-const selectedItem = ref('local-changes');
+const selectedItem = ref('all-commits');
+
+// Toast notifications
+interface Toast {
+  id: number;
+  type: 'error' | 'success' | 'info';
+  title: string;
+  message?: string;
+}
+const toasts = ref<Toast[]>([]);
+let toastIdCounter = 0;
+
+function extractErrorMessage(error: any): string {
+  // Check if it's an axios error with response data
+  if (error.response?.data?.error) {
+    const apiError = error.response.data.error;
+    return apiError.message || apiError.code || 'Unknown error';
+  }
+  // Check if it's a regular Error object
+  if (error.message) {
+    return error.message;
+  }
+  // Fallback to string representation
+  return String(error);
+}
+
+function showToast(type: Toast['type'], title: string, errorOrMessage?: string | any) {
+  const id = ++toastIdCounter;
+  const message = errorOrMessage ? extractErrorMessage(errorOrMessage) : undefined;
+  toasts.value.push({ id, type, title, message });
+  setTimeout(() => removeToast(id), 5000);
+}
+
+function removeToast(id: number) {
+  const index = toasts.value.findIndex(t => t.id === id);
+  if (index >= 0) toasts.value.splice(index, 1);
+}
 
 // Repository data
 const repositories = computed(() => repoStore.repositories);
@@ -126,6 +204,8 @@ const currentRepo = computed(() =>
 const commits = ref<Commit[]>([]);
 const hasMoreCommits = ref(false);
 const currentPage = ref(0);
+const selectedBranch = ref<string | undefined>(undefined);
+const selectedCommitSha = ref<string | undefined>(undefined);
 
 // Changes data
 const stagedFiles = ref<FileChange[]>([]);
@@ -134,6 +214,7 @@ const changesCount = computed(() => stagedFiles.value.length + unstagedFiles.val
 
 // Branch/Remote data
 const localBranches = ref<Branch[]>([]);
+const remoteBranches = ref<Branch[]>([]);
 const remotes = ref<string[]>([]);
 const tags = ref<string[]>([]);
 const stashes = ref<string[]>([]);
@@ -146,7 +227,18 @@ onMounted(async () => {
 
 async function selectRepository(repoId: string) {
   repoStore.setCurrentRepository(repoId);
+  // Load commits by default when selecting a repository
+  selectedItem.value = 'all-commits';
   await loadRepositoryData();
+  
+  // After loading branches, select the current branch by default
+  const currentBranch = localBranches.value.find(b => b.current);
+  if (currentBranch) {
+    selectedBranch.value = currentBranch.name;
+    if (currentBranch.commit) {
+      selectedCommitSha.value = currentBranch.commit;
+    }
+  }
 }
 
 async function loadRepositoryData() {
@@ -156,9 +248,11 @@ async function loadRepositoryData() {
   try {
     const branches = await gitApi.listBranches(currentRepositoryId.value);
     localBranches.value = branches.filter((b) => b.type === 'local');
+    remoteBranches.value = branches.filter((b) => b.type === 'remote');
     remotes.value = [...new Set(branches.filter((b) => b.type === 'remote').map((b) => b.name.split('/')[0]))];
   } catch (error) {
     console.error('Failed to load branches:', error);
+    showToast('error', 'Failed to load branches', error);
   }
 
   // Load other data based on selected item
@@ -171,6 +265,8 @@ async function loadRepositoryData() {
 
 async function handleSelectItem(item: string) {
   selectedItem.value = item;
+  // When selecting "all-commits", keep the current branch selected (don't clear it)
+  // This maintains the branch selection in the left panel
   await loadRepositoryData();
 }
 
@@ -183,9 +279,10 @@ async function loadCommits(reset = true) {
   }
 
   try {
+    // Always load commits from all branches, never filter by branch
     const result = await gitApi.listCommits(currentRepositoryId.value, {
-      limit: 50,
-      skip: currentPage.value * 50,
+      limit: 1000,
+      skip: currentPage.value * 1000,
     });
     
     if (reset) {
@@ -253,6 +350,30 @@ async function removeRepository(repoId: string) {
   }
 }
 
+async function handleViewBranch(branchName: string, type: 'local' | 'remote') {
+  if (!currentRepositoryId.value) return;
+
+  try {
+    // Set the selected branch for UI highlighting
+    selectedBranch.value = branchName;
+    selectedItem.value = 'all-commits';
+    
+    // Load commits first (always from all branches)
+    await loadCommits();
+    
+    // Then find and select the head commit of this branch to navigate to it
+    const branch = type === 'local' 
+      ? localBranches.value.find(b => b.name === branchName)
+      : remoteBranches.value.find(b => b.name === branchName);
+    
+    if (branch?.commit) {
+      selectedCommitSha.value = branch.commit;
+    }
+  } catch (error) {
+    showToast('error', 'Failed to view branch', error);
+  }
+}
+
 async function handleCheckoutBranch(branchName: string) {
   if (!currentRepositoryId.value) return;
 
@@ -260,8 +381,9 @@ async function handleCheckoutBranch(branchName: string) {
     await gitApi.checkout(currentRepositoryId.value, branchName);
     await repoStore.refreshRepository(currentRepositoryId.value);
     await loadRepositoryData();
+    showToast('success', 'Branch checked out', `Successfully checked out to ${branchName}`);
   } catch (error) {
-    alert('Failed to checkout branch: ' + (error as Error).message);
+    showToast('error', 'Failed to checkout branch', error);
   }
 }
 
@@ -272,7 +394,7 @@ async function handleStage(path: string) {
     await gitApi.stage(currentRepositoryId.value, [path]);
     await loadChanges();
   } catch (error) {
-    alert('Failed to stage file: ' + (error as Error).message);
+    showToast('error', 'Failed to stage file', error);
   }
 }
 
@@ -283,7 +405,7 @@ async function handleUnstage(path: string) {
     await gitApi.unstage(currentRepositoryId.value, [path]);
     await loadChanges();
   } catch (error) {
-    alert('Failed to unstage file: ' + (error as Error).message);
+    showToast('error', 'Failed to unstage file', error);
   }
 }
 
@@ -295,7 +417,7 @@ async function handleStageAll() {
     await gitApi.stage(currentRepositoryId.value, files);
     await loadChanges();
   } catch (error) {
-    alert('Failed to stage files: ' + (error as Error).message);
+    showToast('error', 'Failed to stage files', error);
   }
 }
 
@@ -307,7 +429,7 @@ async function handleUnstageAll() {
     await gitApi.unstage(currentRepositoryId.value, files);
     await loadChanges();
   } catch (error) {
-    alert('Failed to unstage files: ' + (error as Error).message);
+    showToast('error', 'Failed to unstage files', error);
   }
 }
 
@@ -318,13 +440,14 @@ async function handleCommit(message: string) {
     await gitApi.commit(currentRepositoryId.value, message);
     await loadChanges();
     await loadCommits();
+    showToast('success', 'Commit created', 'Changes have been committed successfully');
   } catch (error) {
-    alert('Failed to commit: ' + (error as Error).message);
+    showToast('error', 'Failed to commit', error);
   }
 }
 
 async function handleCommitSelected(commit: Commit) {
-  console.log('Selected commit:', commit);
+  selectedCommitSha.value = commit.sha;
 }
 
 // Toolbar actions
@@ -341,9 +464,9 @@ async function handleFetch() {
   
   try {
     await gitApi.fetch(currentRepositoryId.value);
-    alert('Fetch completed');
+    showToast('success', 'Fetch completed', 'Remote changes have been fetched');
   } catch (error) {
-    alert('Failed to fetch: ' + (error as Error).message);
+    showToast('error', 'Failed to fetch', error);
   }
 }
 
@@ -353,9 +476,9 @@ async function handlePull() {
   try {
     await gitApi.pull(currentRepositoryId.value);
     await loadRepositoryData();
-    alert('Pull completed');
+    showToast('success', 'Pull completed', 'Changes have been pulled successfully');
   } catch (error) {
-    alert('Failed to pull: ' + (error as Error).message);
+    showToast('error', 'Failed to pull', error);
   }
 }
 
@@ -364,9 +487,9 @@ async function handlePush() {
   
   try {
     await gitApi.push(currentRepositoryId.value);
-    alert('Push completed');
+    showToast('success', 'Push completed', 'Changes have been pushed successfully');
   } catch (error) {
-    alert('Failed to push: ' + (error as Error).message);
+    showToast('error', 'Failed to push', error);
   }
 }
 
@@ -374,6 +497,23 @@ async function handleStash() {
   if (!currentRepositoryId.value) return;
   
   // TODO: Implement stash functionality
-  alert('Stash functionality not yet implemented');
+  showToast('info', 'Not implemented', 'Stash functionality coming soon');
 }
 </script>
+
+<style scoped>
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+</style>

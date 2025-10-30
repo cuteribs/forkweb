@@ -68,30 +68,92 @@ export class SimpleGitAdapter implements IGitService {
 
   async log(repoPath: string, options: LogOptions = {}): Promise<Commit[]> {
     const git = this.getGit(repoPath);
-    const logOptions: any = {
-      maxCount: options.maxCount || 100,
-    };
+    
+    try {
+      const logOptions: any = {
+        maxCount: options.maxCount || 1000,
+        format: {
+          hash: '%H',
+          parents: '%P',
+          date: '%ai',
+          message: '%s',
+          body: '%b',
+          author_name: '%an',
+          author_email: '%ae',
+          refs: '%D',
+        },
+      };
 
-    if (options.skip) logOptions.from = options.skip;
-    if (options.path) logOptions.file = options.path;
+      // Handle branch parameter - if provided, show commits from that branch only
+      // If not provided, show commits from all branches
+      if (options.branch) {
+        logOptions.from = options.branch;
+      } else {
+        // Show commits from all branches
+        logOptions['--all'] = null;
+      }
 
-    const log: LogResult = await git.log(logOptions);
+      // Handle pagination with skip (only if greater than 0)
+      if (options.skip && options.skip > 0) {
+        logOptions.skip = options.skip;
+      }
 
-    return log.all.map(commit => ({
-      sha: commit.hash,
-      message: commit.message,
-      author: {
-        name: commit.author_name,
-        email: commit.author_email,
+      // Handle file path filtering
+      if (options.path) {
+        logOptions.file = options.path;
+      }
+
+      const log: LogResult = await git.log(logOptions);
+
+      return log.all.map((commit: any) => ({
+        sha: commit.hash,
+        message: commit.message,
+        author: {
+          name: commit.author_name,
+          email: commit.author_email,
+          date: new Date(commit.date),
+        },
+        committer: {
+          name: commit.author_name,
+          email: commit.author_email,
+        },
         date: new Date(commit.date),
-      },
-      committer: {
-        name: commit.author_name,
-        email: commit.author_email,
-      },
-      date: new Date(commit.date),
-      parents: commit.hash ? [commit.hash.substring(0, 7)] : [],
-    }));
+        parents: commit.parents ? commit.parents.split(' ').filter((p: string) => p) : [],
+        branches: commit.refs ? commit.refs.split(', ')
+          .filter((ref: string) => !ref.startsWith('tag: '))
+          .map((ref: string) => {
+            // Remove "HEAD -> " prefix but keep the branch name
+            if (ref.startsWith('HEAD -> ')) {
+              return ref.replace('HEAD -> ', '');
+            }
+            // Skip origin/HEAD
+            if (ref === 'origin/HEAD' || ref.includes('origin/HEAD ->')) {
+              return null;
+            }
+            // Keep remote branches with format "origin/branch-name"
+            // Filter out refs like "refs/remotes/origin/branch-name" format
+            if (ref.includes('origin/') || ref.includes('upstream/')) {
+              return ref;
+            }
+            // Keep local branches (no slash in name)
+            if (!ref.includes('/')) {
+              return ref;
+            }
+            // Skip other refs
+            return null;
+          })
+          .filter((ref: string | null) => ref !== null) : [],
+      }));
+    } catch (error: any) {
+      // Handle empty repository or no commits case
+      if (error.message?.includes('does not have any commits yet') ||
+          error.message?.includes('unknown revision') ||
+          error.message?.includes('ambiguous argument')) {
+        logger.warn(`No commits found in ${repoPath}: ${error.message}`);
+        return [];
+      }
+      throw error;
+    }
   }
 
   async show(repoPath: string, commitSHA: string): Promise<Commit> {

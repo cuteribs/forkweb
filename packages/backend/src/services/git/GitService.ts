@@ -51,7 +51,7 @@ export class GitService implements IGitService {
 
   async log(repoPath: string, options?: LogOptions): Promise<Commit[]> {
     const branch = options?.branch || 'HEAD';
-    const limit = options?.maxCount || 100;
+    const limit = options?.maxCount || 1000;
     const cacheKey = CACHE_KEYS.commits(repoPath, branch, limit);
 
     // Try cache first

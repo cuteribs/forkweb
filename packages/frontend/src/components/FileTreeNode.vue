@@ -6,10 +6,16 @@
       :style="{ paddingLeft: `${depth * 0.75 + 0.75}rem` }"
       @click="handleClick"
     >
-      <span v-if="node.type === 'directory'" class="w-4 text-gray-500">
-        {{ expanded ? '▼' : '▶' }}
-      </span>
+      <Icon 
+        v-if="node.type === 'directory'" 
+        :icon="expanded ? 'codicon:chevron-down' : 'codicon:chevron-right'" 
+        class="w-4 text-gray-500" 
+      />
       <span v-else class="w-4"></span>
+      <Icon 
+        :icon="node.type === 'directory' ? (expanded ? 'codicon:folder-opened' : 'codicon:folder') : 'codicon:file'"
+        class="text-gray-500"
+      />
       <span class="truncate">{{ fileName }}</span>
     </div>
 
@@ -28,6 +34,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { Icon } from '@iconify/vue';
 import type { FileNode } from '@forkweb/shared';
 
 interface Props {
