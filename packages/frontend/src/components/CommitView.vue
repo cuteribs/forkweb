@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Top Section: Commit List with Graph + Bottom Section: Commit Details with Resizer -->
-    <ResizablePanel direction="vertical" :default-size="400" :min-size="200" :max-size="800">
+    <ResizablePanel direction="vertical" :default-size="250" :min-size="50" resize-target="second">
       <template #first>
         <!-- Top Section: Commit List with Graph -->
         <div class="h-full flex overflow-hidden">
@@ -11,50 +11,52 @@
           </div>
 
           <!-- Commit List -->
-          <div ref="listContainer" class="flex-1 overflow-y-auto" @scroll="syncScroll('list')">
-            <div
-              v-for="(commit, index) in commits"
-              :key="commit.sha"
-              @click="selectCommit(commit)"
-              class="flex items-center gap-1.5 px-3 py-1.5 border-b border-gray-800 cursor-pointer hover:bg-gray-850 transition-colors"
-              :class="{ 
-                'bg-gray-850': selectedCommit?.sha === commit.sha,
-                'opacity-70': isRemoteOnly(commit)
-              }"
-              style="height: 36px"
-            >
-              <!-- Branch/Tag Labels -->
-              <div class="flex gap-1 flex-shrink-0">
-                <span
-                  v-for="branch in commit.branches"
-                  :key="branch"
-                  class="text-xs px-1.5 py-0.5 rounded font-medium"
-                  :style="{ 
-                    backgroundColor: getBranchColor(branch),
-                    color: '#FFFFFF',
-                    border: `1px solid ${getBranchColor(branch)}`,
-                    opacity: isRemoteBranch(branch) ? '0.9' : '1'
-                  }"
-                >
-                  {{ branch }}
-                </span>
+          <div ref="listContainer" class="flex-1 overflow-y-auto border-l border-gray-700" @scroll="syncScroll('list')">
+            <div class="min-w-max">
+              <div
+                v-for="commit in commits"
+                :key="commit.sha"
+                @click="selectCommit(commit)"
+                class="flex items-center gap-1.5 px-3 py-1.5 border-b border-gray-800 cursor-pointer hover:bg-gray-850 transition-colors"
+                :class="{ 
+                  'bg-gray-850': selectedCommit?.sha === commit.sha,
+                  'opacity-70': isRemoteOnly(commit)
+                }"
+                style="height: 36px"
+              >
+                <!-- Branch/Tag Labels -->
+                <div class="flex gap-1 flex-shrink-0">
+                  <span
+                    v-for="branch in commit.branches"
+                    :key="branch"
+                    class="text-xs px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
+                    :style="{ 
+                      backgroundColor: getBranchColor(branch),
+                      color: '#FFFFFF',
+                      border: `1px solid ${getBranchColor(branch)}`,
+                      opacity: isRemoteBranch(branch) ? '0.9' : '1'
+                    }"
+                  >
+                    {{ branch }}
+                  </span>
+                </div>
+
+                <!-- Commit Subject (flexible width) -->
+                <div class="flex-1 min-w-[300px] truncate text-sm">{{ commit.message.split('\n')[0] }}</div>
+
+                <!-- SHA (fixed) -->
+                <div class="w-16 font-mono text-xs text-muted flex-shrink-0 text-right">{{ commit.sha.substring(0, 7) }}</div>
+
+                <!-- Author (fixed) -->
+                <div class="w-32 truncate text-xs text-muted flex-shrink-0">{{ commit.author.name }}</div>
+
+                <!-- Timestamp (fixed) -->
+                <div class="w-20 text-xs text-muted flex-shrink-0 text-right">{{ formatDate(commit.date) }}</div>
               </div>
 
-              <!-- Commit Subject -->
-              <div class="flex-1 truncate text-sm">{{ commit.message.split('\n')[0] }}</div>
-
-              <!-- Author -->
-              <div class="w-28 truncate text-xs text-muted flex-shrink-0">{{ commit.author.name }}</div>
-
-              <!-- SHA -->
-              <div class="font-mono text-xs text-muted flex-shrink-0">{{ commit.sha.substring(0, 7) }}</div>
-
-              <!-- Timestamp -->
-              <div class="w-20 text-xs text-muted flex-shrink-0">{{ formatDate(commit.date) }}</div>
-            </div>
-
-            <div v-if="hasMore" class="p-2 text-center">
-              <button class="btn btn-ghost btn-sm" @click="$emit('load-more')">Load More</button>
+              <div v-if="hasMore" class="p-2 text-center">
+                <button class="btn btn-ghost btn-sm" @click="$emit('load-more')">Load More</button>
+              </div>
             </div>
           </div>
         </div>
@@ -207,13 +209,13 @@ interface Props {
   commits: Commit[];
   hasMore?: boolean;
   currentBranch?: string;
-  selectedCommitSha?: string;
+  headSha?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hasMore: false,
   currentBranch: '',
-  selectedCommitSha: undefined,
+  headSha: '',
 });
 
 const emit = defineEmits<{
@@ -279,16 +281,27 @@ function syncScroll(source: 'graph' | 'list') {
   });
 }
 
-// Watch for selected commit changes from parent
-watch(() => props.selectedCommitSha, (sha) => {
-  if (sha) {
+// Watch for HEAD changes and auto-select
+watch(() => props.headSha, (sha) => {
+  if (sha && !selectedCommit.value) {
     const commit = props.commits.find(c => c.sha === sha);
     if (commit) {
       selectCommit(commit);
       scrollToCommit(sha);
     }
   }
-});
+}, { immediate: true });
+
+// Watch for commits changes (initial load or refresh)
+watch(() => props.commits, (newCommits) => {
+  if (newCommits.length > 0 && !selectedCommit.value && props.headSha) {
+    const commit = newCommits.find(c => c.sha === props.headSha);
+    if (commit) {
+      selectCommit(commit);
+      scrollToCommit(props.headSha);
+    }
+  }
+}, { immediate: true });
 
 function scrollToCommit(sha: string) {
   const index = props.commits.findIndex(c => c.sha === sha);

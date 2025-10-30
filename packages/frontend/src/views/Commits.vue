@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <!-- Filters -->
-    <div class="px-3 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
+    <div class="px-3 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2 flex-shrink-0">
       <select v-model="selectedBranch" class="input text-sm flex-1" @change="() => loadCommits()">
         <option value="">All Branches</option>
         <option v-for="branch in branches" :key="branch.name" :value="branch.name">
@@ -11,64 +11,26 @@
       <button class="btn-ghost px-2 py-1 text-sm" @click="() => loadCommits()" title="Refresh">⟳</button>
     </div>
 
-    <!-- Commit List -->
-    <div class="flex-1 overflow-y-auto">
-      <div v-if="loading" class="p-4 text-center text-muted text-sm">Loading...</div>
-
-      <div v-else-if="commits.length === 0" class="p-4 text-center text-muted text-sm">
-        No commits found
-      </div>
-
-      <div v-else class="divide-y divide-gray-700">
-        <div
-          v-for="commit in commits"
-          :key="commit.sha"
-          class="px-3 py-2 hover:bg-gray-800 cursor-pointer transition-colors"
-          @click="selectCommit(commit)"
-        >
-          <div class="flex items-start gap-2">
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium truncate">{{ commit.message.split('\n')[0] }}</p>
-              <div class="flex items-center gap-2 mt-1 text-sm text-muted">
-                <span class="truncate">{{ commit.author.name }}</span>
-                <span>·</span>
-                <span>{{ formatDate(new Date(commit.date).getTime()) }}</span>
-                <span class="font-mono">{{ commit.sha.substring(0, 7) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Load More -->
-      <div v-if="hasMore && !loading" class="p-2 text-center">
-        <button class="btn btn-ghost btn-sm" @click="loadMore">Load More</button>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex-1 flex items-center justify-center">
+      <div class="text-center text-muted text-sm">Loading commits...</div>
     </div>
 
-    <!-- Commit Detail Modal -->
-    <div
-      v-if="selectedCommitDetail"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      @click="selectedCommitDetail = null"
-    >
-      <div class="card w-full max-w-4xl max-h-[90vh] flex flex-col" @click.stop>
-        <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-          <h3 class="font-semibold truncate">{{ selectedCommitDetail.message.split('\n')[0] }}</h3>
-          <button class="btn-ghost px-2 py-1" @click="selectedCommitDetail = null">✕</button>
-        </div>
-        <div class="flex-1 overflow-auto p-4 text-sm">
-          <div class="space-y-2 mb-4">
-            <div><strong>SHA:</strong> <span class="font-mono">{{ selectedCommitDetail.sha }}</span></div>
-            <div><strong>Author:</strong> {{ selectedCommitDetail.author.name }} &lt;{{ selectedCommitDetail.author.email }}&gt;</div>
-            <div><strong>Date:</strong> {{ new Date(selectedCommitDetail.date).toLocaleString() }}</div>
-          </div>
-          <div class="border-t border-gray-700 pt-4">
-            <pre class="text-sm whitespace-pre-wrap">{{ selectedCommitDetail.message }}</pre>
-          </div>
-        </div>
-      </div>
+    <!-- Empty State -->
+    <div v-else-if="commits.length === 0" class="flex-1 flex items-center justify-center">
+      <div class="text-center text-muted text-sm">No commits found</div>
     </div>
+
+    <!-- Commit View -->
+    <CommitView
+      v-else
+      :commits="commits"
+      :has-more="hasMore"
+      :current-branch="currentBranch"
+      :head-sha="headSha"
+      @load-more="loadMore"
+      @commit-selected="onCommitSelected"
+    />
   </div>
 </template>
 
@@ -77,23 +39,30 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Commit, Branch } from '@forkweb/shared';
 import { gitApi } from '@/api/git';
+import CommitView from '@/components/CommitView.vue';
+import { useRepositoryStore } from '@/stores/repository';
 
 const route = useRoute();
+const repoStore = useRepositoryStore();
 
 const loading = ref(false);
 const commits = ref<Commit[]>([]);
 const branches = ref<Branch[]>([]);
 const selectedBranch = ref('');
-const selectedCommitDetail = ref<Commit | null>(null);
 const currentPage = ref(0);
 const pageSize = 50;
 const hasMore = ref(true);
+const headSha = ref<string>('');
 
 const repoId = computed(() => route.params.id as string);
+const currentRepo = computed(() => repoStore.currentRepository);
+const currentBranch = computed(() => currentRepo.value?.currentBranch || '');
 
 onMounted(async () => {
   await loadBranches();
   await loadCommits();
+  // Find HEAD commit SHA
+  findHeadSha();
 });
 
 async function loadBranches() {
@@ -125,10 +94,32 @@ async function loadCommits(reset = true) {
     }
     
     hasMore.value = result.hasMore;
+    
+    // Find HEAD after loading commits
+    if (reset) {
+      findHeadSha();
+    }
   } catch (error) {
     console.error('Failed to load commits:', error);
   } finally {
     loading.value = false;
+  }
+}
+
+function findHeadSha() {
+  // Find the commit that has the current branch in its branches array
+  const currentBranchName = currentBranch.value;
+  if (!currentBranchName || commits.value.length === 0) return;
+  
+  const headCommit = commits.value.find(commit => 
+    commit.branches?.includes(currentBranchName)
+  );
+  
+  if (headCommit) {
+    headSha.value = headCommit.sha;
+  } else if (commits.value.length > 0) {
+    // Fallback to first commit if HEAD not found
+    headSha.value = commits.value[0].sha;
   }
 }
 
@@ -137,33 +128,7 @@ async function loadMore() {
   await loadCommits(false);
 }
 
-async function selectCommit(commit: Commit) {
-  try {
-    selectedCommitDetail.value = await gitApi.getCommit(repoId.value, commit.sha);
-  } catch (error) {
-    console.error('Failed to load commit details:', error);
-  }
-}
-
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 7) {
-    return date.toLocaleDateString();
-  } else if (days > 0) {
-    return `${days}d ago`;
-  } else if (hours > 0) {
-    return `${hours}h ago`;
-  } else if (minutes > 0) {
-    return `${minutes}m ago`;
-  } else {
-    return 'just now';
-  }
+function onCommitSelected(commit: Commit) {
+  console.log('Selected commit:', commit.sha);
 }
 </script>
