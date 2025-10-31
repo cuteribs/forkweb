@@ -35,14 +35,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { Commit, Branch } from '@forkweb/shared';
 import { gitApi } from '@/api/git';
 import CommitView from '@/components/CommitView.vue';
 import { useRepositoryStore } from '@/stores/repository';
 
 const route = useRoute();
+const router = useRouter();
 const repoStore = useRepositoryStore();
 
 const loading = ref(false);
@@ -59,10 +60,32 @@ const currentRepo = computed(() => repoStore.currentRepository);
 const currentBranch = computed(() => currentRepo.value?.currentBranch || '');
 
 onMounted(async () => {
+  // Restore branch filter from URL query
+  const queryBranch = route.query.branch as string;
+  if (queryBranch) {
+    selectedBranch.value = queryBranch;
+  }
+  
   await loadBranches();
   await loadCommits();
   // Find HEAD commit SHA
   findHeadSha();
+});
+
+// Watch for current branch changes (after checkout)
+watch(currentBranch, async (newBranch, oldBranch) => {
+  if (newBranch && newBranch !== oldBranch) {
+    await loadBranches();
+    await loadCommits();
+  }
+});
+
+// Watch for URL query changes
+watch(() => route.query.branch, (newBranch) => {
+  if (newBranch !== selectedBranch.value) {
+    selectedBranch.value = (newBranch as string) || '';
+    loadCommits();
+  }
 });
 
 async function loadBranches() {
@@ -77,6 +100,13 @@ async function loadCommits(reset = true) {
   if (reset) {
     currentPage.value = 0;
     commits.value = [];
+    
+    // Update URL with branch filter
+    const query: Record<string, string> = {};
+    if (selectedBranch.value) {
+      query.branch = selectedBranch.value;
+    }
+    router.replace({ query });
   }
 
   loading.value = true;

@@ -50,17 +50,25 @@ const tabs = [
 
 const repo = computed(() => repoStore.currentRepository);
 
-onMounted(() => {
+onMounted(async () => {
   const id = route.params.id as string;
   if (id) {
+    // Ensure repositories are loaded
+    if (repoStore.repositories.length === 0) {
+      await repoStore.loadRepositories();
+    }
     repoStore.setCurrentRepository(id);
   }
 });
 
 watch(
   () => route.params.id,
-  (id) => {
+  async (id) => {
     if (id) {
+      // Ensure repositories are loaded
+      if (repoStore.repositories.length === 0) {
+        await repoStore.loadRepositories();
+      }
       repoStore.setCurrentRepository(id as string);
     }
   }

@@ -7,7 +7,7 @@
         <div class="h-full flex overflow-hidden">
           <!-- Commit Graph -->
           <div ref="graphContainer" class="overflow-y-auto bg-gray-900 scrollbar-hidden" @scroll="syncScroll('graph')">
-            <CommitGraph :commits="commits" :row-height="36" />
+            <CommitGraph :commits="commits" :row-height="28" />
           </div>
 
           <!-- Commit List -->
@@ -17,44 +17,46 @@
                 v-for="commit in commits"
                 :key="commit.sha"
                 @click="selectCommit(commit)"
-                class="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800 cursor-pointer hover:bg-gray-850 transition-colors"
+                class="flex items-center gap-1.5 px-2.5 border-b border-gray-800 cursor-pointer hover:bg-gray-850 transition-colors"
                 :class="{ 
                   'bg-gray-850': selectedCommit?.sha === commit.sha,
-                  'opacity-70': isRemoteOnly(commit)
+                  'opacity-70': isRemoteOnly(commit),
+                  'font-bold': commit.sha === headSha
                 }"
-                style="height: 36px;"
+                style="height: 28px;"
               >
                 <!-- Branch/Tag Labels + Commit Subject (flexible container) -->
-                <div class="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
+                <div class="flex-1 flex items-center gap-1 min-w-0 overflow-hidden">
                   <!-- Branch/Tag Labels -->
-                  <div class="flex gap-1 flex-shrink-0">
+                  <div class="flex gap-0.5 flex-shrink-0">
                     <span
-                      v-for="branch in commit.branches"
-                      :key="branch"
-                      class="text-xs px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
+                      v-for="branch in processBranches(commit.branches)"
+                      :key="branch.name"
+                      class="text-2xs px-1 py-0.5 rounded whitespace-nowrap leading-none inline-flex items-center gap-0.5"
                       :style="{ 
-                        backgroundColor: getBranchColor(branch),
+                        backgroundColor: getBranchColor(branch.name, commit),
                         color: '#FFFFFF',
-                        border: `1px solid ${getBranchColor(branch)}`,
-                        opacity: isRemoteBranch(branch) ? '0.9' : '1'
+                        border: `1px solid ${getBranchColor(branch.name, commit)}`
                       }"
                     >
-                      {{ branch }}
+                      <span v-if="branch.hasLocal && branch.hasRemote" class="opacity-80">⇅</span>
+                      <span v-else-if="branch.hasRemote" class="opacity-80">↓</span>
+                      {{ branch.displayName }}
                     </span>
                   </div>
                   
                   <!-- Commit Subject -->
-                  <div class="flex-1 min-w-0 text-sm truncate">{{ commit.message.split('\n')[0] }}</div>
+                  <div class="flex-1 min-w-0 text-2xs truncate">{{ commit.message.split('\n')[0] }}</div>
                 </div>
 
                 <!-- SHA (fixed) -->
-                <div style="width: 60px;" class="font-mono text-xs text-muted flex-shrink-0">{{ commit.sha.substring(0, 7) }}</div>
+                <div style="width: 55px;" class="font-mono text-2xs text-muted flex-shrink-0">{{ commit.sha.substring(0, 7) }}</div>
 
                 <!-- Author (fixed) -->
-                <div style="width: 120px;" class="text-xs text-muted flex-shrink-0 truncate">{{ commit.author.name }}</div>
+                <div style="width: 110px;" class="text-2xs text-muted flex-shrink-0 truncate">{{ commit.author.name }}</div>
 
                 <!-- Timestamp (fixed) -->
-                <div style="width: 120px;" class="text-xs text-muted flex-shrink-0 text-right">{{ formatDate(commit.date) }}</div>
+                <div style="width: 110px;" class="text-2xs text-muted flex-shrink-0 text-right">{{ formatDate(commit.date) }}</div>
               </div>
 
               <div v-if="hasMore" class="p-2 text-center">
@@ -201,12 +203,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { Commit, CommitFile, FileNode } from '@forkweb/shared';
 import CommitGraph from '@/components/CommitGraph.vue';
 import FileTreeNode from '@/components/FileTreeNode.vue';
 import ResizablePanel from '@/components/ResizablePanel.vue';
-import { getBranchGraphColor } from '@/utils/branchColors';
+import { buildCommitGraph } from '@/utils/graph';
+import { viewStateManager } from '@/utils/viewState';
 
 interface Props {
   commits: Commit[];
@@ -226,9 +230,23 @@ const emit = defineEmits<{
   'commit-selected': [commit: Commit];
 }>();
 
+const route = useRoute();
+const router = useRouter();
+const repoId = computed(() => route.params.id as string);
+
 const graphContainer = ref<HTMLElement | null>(null);
 const listContainer = ref<HTMLElement | null>(null);
 let isScrolling = false;
+
+// Build graph data to get commit colors
+const graphData = computed(() => buildCommitGraph(props.commits, 28));
+const commitColorMap = computed(() => {
+  const map: Record<string, string> = {};
+  graphData.value.vertices.forEach(vertex => {
+    map[vertex.sha] = vertex.color;
+  });
+  return map;
+});
 
 const selectedCommit = ref<Commit | null>(null);
 const activeTab = ref('info');
@@ -246,19 +264,105 @@ const tabs = [
   { id: 'tree', label: 'File Tree' },
 ];
 
-// Get branch color from graph
-function getBranchColor(branchName: string): string {
-  // Use primary color for current branch
-  if (branchName === props.currentBranch) {
-    return '#5B9BD5';
+// Restore view state on mount
+onMounted(() => {
+  // Restore selected commit from URL query
+  const queryCommitSha = route.query.commit as string;
+  if (queryCommitSha) {
+    const commit = props.commits.find(c => c.sha.startsWith(queryCommitSha));
+    if (commit) {
+      selectedCommit.value = commit;
+    }
   }
   
-  return getBranchGraphColor(branchName);
+  // Restore active tab from URL query
+  const queryTab = route.query.tab as string;
+  if (queryTab && tabs.some(t => t.id === queryTab)) {
+    activeTab.value = queryTab;
+  }
+  
+  // Restore scroll position from sessionStorage
+  const savedScrollPosition = viewStateManager.getCommitScrollPosition(repoId.value);
+  if (savedScrollPosition !== undefined && listContainer.value) {
+    setTimeout(() => {
+      if (listContainer.value) {
+        listContainer.value.scrollTop = savedScrollPosition;
+        if (graphContainer.value) {
+          graphContainer.value.scrollTop = savedScrollPosition;
+        }
+      }
+    }, 100);
+  }
+});
+
+// Save scroll position periodically
+let scrollSaveTimer: number | null = null;
+function saveScrollPosition() {
+  if (scrollSaveTimer) {
+    clearTimeout(scrollSaveTimer);
+  }
+  scrollSaveTimer = window.setTimeout(() => {
+    if (listContainer.value) {
+      viewStateManager.setCommitScrollPosition(repoId.value, listContainer.value.scrollTop);
+    }
+  }, 500);
 }
 
-// Check if branch is remote
-function isRemoteBranch(branchName: string): boolean {
-  return branchName.includes('origin/') || branchName.includes('upstream/');
+onBeforeUnmount(() => {
+  if (scrollSaveTimer) {
+    clearTimeout(scrollSaveTimer);
+  }
+});
+
+// Process branches to merge local and remote
+interface BranchDisplay {
+  name: string;
+  hasLocal: boolean;
+  hasRemote: boolean;
+  displayName: string;
+}
+
+function processBranches(branches: string[]): BranchDisplay[] {
+  if (!branches || branches.length === 0) return [];
+  
+  const branchMap: Map<string, BranchDisplay> = new Map();
+  
+  branches.forEach(branch => {
+    if (branch.startsWith('origin/')) {
+      const localName = branch.substring(7); // Remove 'origin/'
+      const existing = branchMap.get(localName);
+      if (existing) {
+        existing.hasRemote = true;
+      } else {
+        branchMap.set(localName, {
+          name: localName,
+          hasLocal: false,
+          hasRemote: true,
+          displayName: localName
+        });
+      }
+    } else {
+      const existing = branchMap.get(branch);
+      if (existing) {
+        existing.hasLocal = true;
+      } else {
+        branchMap.set(branch, {
+          name: branch,
+          hasLocal: true,
+          hasRemote: false,
+          displayName: branch
+        });
+      }
+    }
+  });
+  
+  return Array.from(branchMap.values());
+}
+
+// Get branch color from commit's graph vertex color
+function getBranchColor(branchName: string, commit: Commit): string {
+  // Use the commit's graph vertex color
+  return commitColorMap.value[commit.sha] || '#888888';
 }
 
 // Check if commit only has remote branches (no local branches)
@@ -266,7 +370,8 @@ function isRemoteOnly(commit: Commit): boolean {
   if (!commit.branches || commit.branches.length === 0) {
     return false;
   }
-  return commit.branches.every(branch => isRemoteBranch(branch));
+  const processed = processBranches(commit.branches);
+  return processed.every(b => !b.hasLocal && b.hasRemote);
 }
 
 // Sync scroll between graph and list
@@ -281,6 +386,9 @@ function syncScroll(source: 'graph' | 'list') {
       listContainer.value.scrollTop = graphContainer.value.scrollTop;
     }
     isScrolling = false;
+    
+    // Save scroll position
+    saveScrollPosition();
   });
 }
 
@@ -309,7 +417,7 @@ watch(() => props.commits, (newCommits) => {
 function scrollToCommit(sha: string) {
   const index = props.commits.findIndex(c => c.sha === sha);
   if (index >= 0 && listContainer.value) {
-    const scrollTop = index * 36; // Updated row height
+    const scrollTop = index * 28; // Row height
     listContainer.value.scrollTop = scrollTop;
     if (graphContainer.value) {
       graphContainer.value.scrollTop = scrollTop;
@@ -321,6 +429,11 @@ function selectCommit(commit: Commit) {
   selectedCommit.value = commit;
   activeTab.value = 'info';
   emit('commit-selected', commit);
+  
+  // Update URL with selected commit (use short SHA)
+  const query = { ...route.query, commit: commit.sha.substring(0, 7) };
+  router.replace({ query });
+  
   // Load commit details (would call API here)
   loadCommitDetails(commit.sha);
 }
@@ -336,6 +449,19 @@ async function loadCommitDetails(sha: string) {
   commitFiles.value = [];
   fileTree.value = [];
 }
+
+// Watch and save active tab changes to URL
+watch(activeTab, (newTab) => {
+  if (newTab !== 'info') {
+    const query = { ...route.query, tab: newTab };
+    router.replace({ query });
+  } else {
+    // Remove tab from URL if it's the default
+    const query = { ...route.query };
+    delete query.tab;
+    router.replace({ query });
+  }
+});
 
 watch(selectedFile, async (filePath) => {
   if (filePath && selectedCommit.value) {
@@ -390,5 +516,10 @@ function fileStatusColor(status: string): string {
 
 .scrollbar-hidden::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
+}
+
+.text-2xs {
+  font-size: 12px;
+  line-height: 1.25;
 }
 </style>

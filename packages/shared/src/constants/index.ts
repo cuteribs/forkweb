@@ -12,8 +12,8 @@ export const BRANCH_TYPE = {
 } as const;
 
 export const DEFAULT_CONFIG = {
-  SERVER_PORT: 3001,
-  SERVER_HOST: 'localhost',
+  SERVER_PORT: 5001,
+  SERVER_HOST: '0.0.0.0',
   MAX_COMMITS: 1000,
   DIFF_CONTEXT: 3,
   COMMIT_PAGE_SIZE: 50,

@@ -9,7 +9,10 @@ export const useWebSocketStore = defineStore('websocket', () => {
   function connect() {
     if (socket.value?.connected) return;
 
-    socket.value = io('http://localhost:3001', {
+    // Use relative path to connect to the same host as the frontend
+    // This allows the backend proxy to handle the connection
+    socket.value = io({
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
     });
 
