@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit, LogResult, StatusResult, BranchSummary } from 'simple-git';
+import simpleGit, { SimpleGit, LogResult, StatusResult, BranchSummary, DefaultLogFields } from 'simple-git';
 import { IGitService } from '../../core/interfaces/IGitService';
 import type {
   GitStatus,
@@ -12,6 +12,10 @@ import type {
 } from '@forkweb/shared';
 import { logger } from '../../utils/logger';
 import path from 'path';
+
+interface LogFields extends DefaultLogFields {
+  parents: string;
+}
 
 export class SimpleGitAdapter implements IGitService {
   private gitInstances: Map<string, SimpleGit> = new Map();
@@ -68,7 +72,7 @@ export class SimpleGitAdapter implements IGitService {
 
   async log(repoPath: string, options: LogOptions = {}): Promise<Commit[]> {
     const git = this.getGit(repoPath);
-    
+
     try {
       const logOptions: any = {
         maxCount: options.maxCount || 1000,
@@ -103,23 +107,25 @@ export class SimpleGitAdapter implements IGitService {
         logOptions.file = options.path;
       }
 
-      const log: LogResult = await git.log(logOptions);
+      const log: LogResult<LogFields> = await git.log(logOptions);
+      console.log(log.latest as any);
 
-      return log.all.map((commit: any) => ({
-        sha: commit.hash,
-        message: commit.message,
+      return log.all.map((x: LogFields) => ({
+        sha: x.hash,
+        message: x.message,
         author: {
-          name: commit.author_name,
-          email: commit.author_email,
-          date: new Date(commit.date),
+          name: x.author_name,
+          email: x.author_email,
+          date: new Date(x.date),
         },
         committer: {
-          name: commit.author_name,
-          email: commit.author_email,
+          name: x.author_name,
+          email: x.author_email,
         },
-        date: new Date(commit.date),
-        parents: commit.parents ? commit.parents.split(' ').filter((p: string) => p) : [],
-        branches: commit.refs ? commit.refs.split(', ')
+        date: new Date(x.date),
+
+        parents: x.parents ? x.parents.split(' ').filter((p: string) => p) : [],
+        branches: x.refs ? x.refs.split(', ')
           .filter((ref: string) => !ref.startsWith('tag: '))
           .map((ref: string) => {
             // Remove "HEAD -> " prefix but keep the branch name
@@ -143,12 +149,16 @@ export class SimpleGitAdapter implements IGitService {
             return null;
           })
           .filter((ref: string | null) => ref !== null) : [],
+        tags: x.refs ? x.refs.split(', ')
+          .filter((ref: string) => ref.startsWith('tag: '))
+          .map((ref: string) => ref.replace('tag: ', '')) : [],
+        isStash: x.refs ? x.refs.includes('stash') : false,
       }));
     } catch (error: any) {
       // Handle empty repository or no commits case
       if (error.message?.includes('does not have any commits yet') ||
-          error.message?.includes('unknown revision') ||
-          error.message?.includes('ambiguous argument')) {
+        error.message?.includes('unknown revision') ||
+        error.message?.includes('ambiguous argument')) {
         logger.warn(`No commits found in ${repoPath}: ${error.message}`);
         return [];
       }
@@ -159,7 +169,7 @@ export class SimpleGitAdapter implements IGitService {
   async show(repoPath: string, commitSHA: string): Promise<Commit> {
     const git = this.getGit(repoPath);
     const result = await git.show([commitSHA, '--format=%H%n%an%n%ae%n%at%n%s%n%b']);
-    
+
     const lines = result.split('\n');
     return {
       sha: lines[0],
@@ -183,11 +193,11 @@ export class SimpleGitAdapter implements IGitService {
     const summary: BranchSummary = await git.branch(['-a', '-vv']);
 
     const branches: Branch[] = [];
-    
+
     for (const [name, branch] of Object.entries(summary.branches)) {
       const isRemote = name.startsWith('remotes/');
       const cleanName = isRemote ? name.replace('remotes/', '') : name;
-      
+
       branches.push({
         name: cleanName,
         type: isRemote ? 'remote' : 'local',
@@ -251,7 +261,7 @@ export class SimpleGitAdapter implements IGitService {
     if (options.path) args.push('--', options.path);
 
     await git.diff(args);
-    
+
     // Parse diff result (simplified)
     return [{
       path: options.path || '',
@@ -265,7 +275,7 @@ export class SimpleGitAdapter implements IGitService {
   async tree(repoPath: string, ref: string = 'HEAD'): Promise<FileNode[]> {
     const git = this.getGit(repoPath);
     const result = await git.raw(['ls-tree', '-r', '--name-only', ref]);
-    
+
     const files = result.split('\n').filter(Boolean);
     return files.map(filePath => ({
       path: filePath,
@@ -289,7 +299,7 @@ export class SimpleGitAdapter implements IGitService {
     const git = this.getGit(repoPath);
     const pullOptions: any = {};
     if (options?.rebase) pullOptions['--rebase'] = null;
-    
+
     await git.pull(options?.remote, options?.branch, pullOptions);
     logger.info(`Pulled changes in ${repoPath}`);
   }
@@ -298,7 +308,7 @@ export class SimpleGitAdapter implements IGitService {
     const git = this.getGit(repoPath);
     const pushOptions: any = {};
     if (options?.force) pushOptions['--force'] = null;
-    
+
     await git.push(options?.remote, options?.branch, pushOptions);
     logger.info(`Pushed changes in ${repoPath}`);
   }

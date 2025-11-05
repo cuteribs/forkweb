@@ -5,8 +5,9 @@ export interface Commit {
   committer: Author;
   date: Date;
   parents: string[];
-  branches?: string[];
-  tags?: string[];
+  branches: string[];
+  tags: string[];
+  isStash: boolean;
 }
 
 export interface Author {
