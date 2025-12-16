@@ -9,6 +9,8 @@ import type {
   DiffOptions,
   FileNode,
   FileChange,
+  TagInfo,
+  StashEntry,
 } from '@forkweb/shared';
 import { logger } from '../../utils/logger';
 import path from 'path';
@@ -176,15 +178,13 @@ export class SimpleGitAdapter implements IGitService {
       message: lines[4] + (lines[5] ? '\n' + lines[5] : ''),
       author: {
         name: lines[1],
-        email: lines[2],
-        date: new Date(parseInt(lines[3]) * 1000),
-      },
-      committer: {
-        name: lines[1],
-        email: lines[2],
+        email: lines[2]
       },
       date: new Date(parseInt(lines[3]) * 1000),
       parents: [],
+      branches: [],
+      tags: [],
+      isStash: false,
     };
   }
 
@@ -320,6 +320,99 @@ export class SimpleGitAdapter implements IGitService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async getTags(repoPath: string): Promise<TagInfo[]> {
+    const git = this.getGit(repoPath);
+    
+    try {
+      // Get all tags with format: "tagname|type|commit|date|tagger|message"
+      const tagsOutput = await git.raw([
+        'tag',
+        '-l',
+        '--format=%(refname:short)|%(objecttype)|%(objectname:short)|%(creatordate:iso8601)|%(taggername)|%(subject)',
+        '--sort=-creatordate'
+      ]);
+
+      if (!tagsOutput.trim()) {
+        return [];
+      }
+
+      const tags: TagInfo[] = [];
+      const lines = tagsOutput.trim().split('\n');
+
+      for (const line of lines) {
+        const [name, objType, commit, dateStr, tagger, message] = line.split('|');
+        
+        // Determine if it's an annotated tag
+        const type = objType === 'tag' ? 'annotated' : 'lightweight';
+        
+        tags.push({
+          name,
+          commit,
+          type,
+          message: message || undefined,
+          tagger: tagger || undefined,
+          date: dateStr ? new Date(dateStr) : undefined,
+        });
+      }
+
+      return tags;
+    } catch (error) {
+      logger.error('Failed to get tags:', error);
+      return [];
+    }
+  }
+
+  async getStashes(repoPath: string): Promise<StashEntry[]> {
+    const git = this.getGit(repoPath);
+    
+    try {
+      // Get stash list with format: "index|branch|date|message"
+      const stashOutput = await git.raw([
+        'stash',
+        'list',
+        '--format=%gd|%D|%ci|%s'
+      ]);
+
+      if (!stashOutput.trim()) {
+        return [];
+      }
+
+      const stashes: StashEntry[] = [];
+      const lines = stashOutput.trim().split('\n');
+
+      for (const line of lines) {
+        const parts = line.split('|');
+        if (parts.length < 4) continue;
+
+        const [indexStr, refs, dateStr, ...messageParts] = parts;
+        const message = messageParts.join('|'); // In case message contains |
+
+        // Extract index number from "stash@{0}"
+        const indexMatch = indexStr.match(/stash@\{(\d+)\}/);
+        const index = indexMatch ? parseInt(indexMatch[1], 10) : 0;
+
+        // Extract branch name from refs like "refs/stash, origin/main, main"
+        let branch = 'unknown';
+        const branchMatch = refs.match(/(?:^|, )([^,]+?)(?:,|$)/);
+        if (branchMatch && branchMatch[1] && !branchMatch[1].includes('stash')) {
+          branch = branchMatch[1].trim();
+        }
+
+        stashes.push({
+          index,
+          message,
+          branch,
+          date: new Date(dateStr),
+        });
+      }
+
+      return stashes;
+    } catch (error) {
+      logger.error('Failed to get stashes:', error);
+      return [];
     }
   }
 

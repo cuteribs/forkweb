@@ -6,6 +6,8 @@ import type {
   Diff,
   DiffOptions,
   FileNode,
+  TagInfo,
+  StashEntry,
 } from '@forkweb/shared';
 
 // Core Git service interface (can be implemented in Go later)
@@ -44,6 +46,10 @@ export interface IGitService {
   fetch(repoPath: string, remote?: string): Promise<void>;
   pull(repoPath: string, options?: { remote?: string; branch?: string; rebase?: boolean }): Promise<void>;
   push(repoPath: string, options?: { remote?: string; branch?: string; force?: boolean }): Promise<void>;
+  
+  // Tags and stashes
+  getTags(repoPath: string): Promise<TagInfo[]>;
+  getStashes(repoPath: string): Promise<StashEntry[]>;
   
   // Utility
   isRepository(path: string): Promise<boolean>;

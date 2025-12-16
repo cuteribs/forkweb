@@ -5,6 +5,8 @@ import type {
   FileNode,
   ApiResponse,
   PaginatedResponse,
+  TagInfo,
+  StashEntry,
 } from '@forkweb/shared';
 import client from './client';
 
@@ -107,5 +109,16 @@ export const gitApi = {
 
   async push(repoId: string, remote = 'origin', force = false): Promise<void> {
     await client.post(`/repositories/${repoId}/push`, { remote, force });
+  },
+
+  // Tags and stashes
+  async getTags(repoId: string): Promise<TagInfo[]> {
+    const { data } = await client.get<ApiResponse<TagInfo[]>>(`/repositories/${repoId}/tags`);
+    return data.data || [];
+  },
+
+  async getStashes(repoId: string): Promise<StashEntry[]> {
+    const { data } = await client.get<ApiResponse<StashEntry[]>>(`/repositories/${repoId}/stashes`);
+    return data.data || [];
   },
 };

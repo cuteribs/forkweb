@@ -6,6 +6,8 @@ import { registerCommitRoutes } from './commits';
 import { registerBranchRoutes } from './branches';
 import { registerChangeRoutes } from './changes';
 import { registerFileRoutes } from './files';
+import { registerTagRoutes } from './tags';
+import { registerStashRoutes } from './stashes';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Get services from app decorator
@@ -29,4 +31,6 @@ export async function registerRoutes(app: FastifyInstance) {
   await registerBranchRoutes(app, services);
   await registerChangeRoutes(app, services);
   await registerFileRoutes(app, services);
+  await registerTagRoutes(app, services);
+  await registerStashRoutes(app, services);
 }

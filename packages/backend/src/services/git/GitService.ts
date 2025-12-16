@@ -9,6 +9,8 @@ import type {
   Diff,
   DiffOptions,
   FileNode,
+  TagInfo,
+  StashEntry,
 } from '@forkweb/shared';
 
 // GitService with caching layer
@@ -190,6 +192,44 @@ export class GitService implements IGitService {
 
   async push(repoPath: string, options?: { remote?: string; branch?: string; force?: boolean }): Promise<void> {
     return this.adapter.push(repoPath, options);
+  }
+
+  async getTags(repoPath: string): Promise<TagInfo[]> {
+    const cacheKey = `tags:${repoPath}`;
+
+    // Try cache first
+    const cached = await this.cache.get<TagInfo[]>(cacheKey);
+    if (cached) return cached;
+
+    // Fetch from adapter
+    const tags = await this.adapter.getTags(repoPath);
+
+    // Cache with moderate TTL
+    await this.cache.set(cacheKey, tags, {
+      ttl: config.cache.ttl.branches, // Use same TTL as branches
+      tags: ['tags', repoPath],
+    });
+
+    return tags;
+  }
+
+  async getStashes(repoPath: string): Promise<StashEntry[]> {
+    const cacheKey = `stashes:${repoPath}`;
+
+    // Try cache first
+    const cached = await this.cache.get<StashEntry[]>(cacheKey);
+    if (cached) return cached;
+
+    // Fetch from adapter
+    const stashes = await this.adapter.getStashes(repoPath);
+
+    // Cache with short TTL (stashes change frequently)
+    await this.cache.set(cacheKey, stashes, {
+      ttl: config.cache.ttl.status, // Use same TTL as status
+      tags: ['stashes', repoPath],
+    });
+
+    return stashes;
   }
 
   async isRepository(path: string): Promise<boolean> {

@@ -255,6 +255,24 @@ async function loadRepositoryData() {
     showToast('error', 'Failed to load branches', error);
   }
 
+  // Load tags
+  try {
+    const tagList = await gitApi.getTags(currentRepositoryId.value);
+    tags.value = tagList.map(tag => tag.name);
+  } catch (error) {
+    console.error('Failed to load tags:', error);
+    showToast('error', 'Failed to load tags', error);
+  }
+
+  // Load stashes
+  try {
+    const stashList = await gitApi.getStashes(currentRepositoryId.value);
+    stashes.value = stashList.map(stash => stash.message);
+  } catch (error) {
+    console.error('Failed to load stashes:', error);
+    showToast('error', 'Failed to load stashes', error);
+  }
+
   // Load other data based on selected item
   if (selectedItem.value === 'all-commits') {
     await loadCommits();
