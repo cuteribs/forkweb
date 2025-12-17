@@ -2,17 +2,16 @@ export interface Commit {
   sha: string;
   message: string;
   author: Author;
-  committer: Author;
   date: Date;
   parents: string[];
-  branches?: string[];
-  tags?: string[];
+  branches: string[];
+  tags: string[];
+  isStash: boolean;
 }
 
 export interface Author {
   name: string;
   email: string;
-  date?: Date;
 }
 
 export interface CommitDetails extends Commit {

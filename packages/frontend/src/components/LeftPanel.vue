@@ -33,7 +33,7 @@
       <!-- Local Branches -->
       <TreeSection
         title="Local Branches"
-        icon="codicon:git-branch"
+        icon="codicon:home"
         :expanded="expandedSections.localBranches"
         @toggle="toggleSection('localBranches')"
       >

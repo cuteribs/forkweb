@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit, LogResult, StatusResult, BranchSummary } from 'simple-git';
+import simpleGit, { SimpleGit, LogResult, StatusResult, BranchSummary, DefaultLogFields } from 'simple-git';
 import { IGitService } from '../../core/interfaces/IGitService';
 import type {
   GitStatus,
@@ -9,9 +9,15 @@ import type {
   DiffOptions,
   FileNode,
   FileChange,
+  TagInfo,
+  StashEntry,
 } from '@forkweb/shared';
 import { logger } from '../../utils/logger';
 import path from 'path';
+
+interface LogFields extends DefaultLogFields {
+  parents: string;
+}
 
 export class SimpleGitAdapter implements IGitService {
   private gitInstances: Map<string, SimpleGit> = new Map();
@@ -68,7 +74,7 @@ export class SimpleGitAdapter implements IGitService {
 
   async log(repoPath: string, options: LogOptions = {}): Promise<Commit[]> {
     const git = this.getGit(repoPath);
-    
+
     try {
       const logOptions: any = {
         maxCount: options.maxCount || 1000,
@@ -103,23 +109,25 @@ export class SimpleGitAdapter implements IGitService {
         logOptions.file = options.path;
       }
 
-      const log: LogResult = await git.log(logOptions);
+      const log: LogResult<LogFields> = await git.log(logOptions);
+      console.log(log.latest as any);
 
-      return log.all.map((commit: any) => ({
-        sha: commit.hash,
-        message: commit.message,
+      return log.all.map((x: LogFields) => ({
+        sha: x.hash,
+        message: x.message,
         author: {
-          name: commit.author_name,
-          email: commit.author_email,
-          date: new Date(commit.date),
+          name: x.author_name,
+          email: x.author_email,
+          date: new Date(x.date),
         },
         committer: {
-          name: commit.author_name,
-          email: commit.author_email,
+          name: x.author_name,
+          email: x.author_email,
         },
-        date: new Date(commit.date),
-        parents: commit.parents ? commit.parents.split(' ').filter((p: string) => p) : [],
-        branches: commit.refs ? commit.refs.split(', ')
+        date: new Date(x.date),
+
+        parents: x.parents ? x.parents.split(' ').filter((p: string) => p) : [],
+        branches: x.refs ? x.refs.split(', ')
           .filter((ref: string) => !ref.startsWith('tag: '))
           .map((ref: string) => {
             // Remove "HEAD -> " prefix but keep the branch name
@@ -143,12 +151,16 @@ export class SimpleGitAdapter implements IGitService {
             return null;
           })
           .filter((ref: string | null) => ref !== null) : [],
+        tags: x.refs ? x.refs.split(', ')
+          .filter((ref: string) => ref.startsWith('tag: '))
+          .map((ref: string) => ref.replace('tag: ', '')) : [],
+        isStash: x.refs ? x.refs.includes('stash') : false,
       }));
     } catch (error: any) {
       // Handle empty repository or no commits case
       if (error.message?.includes('does not have any commits yet') ||
-          error.message?.includes('unknown revision') ||
-          error.message?.includes('ambiguous argument')) {
+        error.message?.includes('unknown revision') ||
+        error.message?.includes('ambiguous argument')) {
         logger.warn(`No commits found in ${repoPath}: ${error.message}`);
         return [];
       }
@@ -159,22 +171,20 @@ export class SimpleGitAdapter implements IGitService {
   async show(repoPath: string, commitSHA: string): Promise<Commit> {
     const git = this.getGit(repoPath);
     const result = await git.show([commitSHA, '--format=%H%n%an%n%ae%n%at%n%s%n%b']);
-    
+
     const lines = result.split('\n');
     return {
       sha: lines[0],
       message: lines[4] + (lines[5] ? '\n' + lines[5] : ''),
       author: {
         name: lines[1],
-        email: lines[2],
-        date: new Date(parseInt(lines[3]) * 1000),
-      },
-      committer: {
-        name: lines[1],
-        email: lines[2],
+        email: lines[2]
       },
       date: new Date(parseInt(lines[3]) * 1000),
       parents: [],
+      branches: [],
+      tags: [],
+      isStash: false,
     };
   }
 
@@ -183,11 +193,11 @@ export class SimpleGitAdapter implements IGitService {
     const summary: BranchSummary = await git.branch(['-a', '-vv']);
 
     const branches: Branch[] = [];
-    
+
     for (const [name, branch] of Object.entries(summary.branches)) {
       const isRemote = name.startsWith('remotes/');
       const cleanName = isRemote ? name.replace('remotes/', '') : name;
-      
+
       branches.push({
         name: cleanName,
         type: isRemote ? 'remote' : 'local',
@@ -251,7 +261,7 @@ export class SimpleGitAdapter implements IGitService {
     if (options.path) args.push('--', options.path);
 
     await git.diff(args);
-    
+
     // Parse diff result (simplified)
     return [{
       path: options.path || '',
@@ -265,7 +275,7 @@ export class SimpleGitAdapter implements IGitService {
   async tree(repoPath: string, ref: string = 'HEAD'): Promise<FileNode[]> {
     const git = this.getGit(repoPath);
     const result = await git.raw(['ls-tree', '-r', '--name-only', ref]);
-    
+
     const files = result.split('\n').filter(Boolean);
     return files.map(filePath => ({
       path: filePath,
@@ -289,7 +299,7 @@ export class SimpleGitAdapter implements IGitService {
     const git = this.getGit(repoPath);
     const pullOptions: any = {};
     if (options?.rebase) pullOptions['--rebase'] = null;
-    
+
     await git.pull(options?.remote, options?.branch, pullOptions);
     logger.info(`Pulled changes in ${repoPath}`);
   }
@@ -298,7 +308,7 @@ export class SimpleGitAdapter implements IGitService {
     const git = this.getGit(repoPath);
     const pushOptions: any = {};
     if (options?.force) pushOptions['--force'] = null;
-    
+
     await git.push(options?.remote, options?.branch, pushOptions);
     logger.info(`Pushed changes in ${repoPath}`);
   }
@@ -310,6 +320,99 @@ export class SimpleGitAdapter implements IGitService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async getTags(repoPath: string): Promise<TagInfo[]> {
+    const git = this.getGit(repoPath);
+    
+    try {
+      // Get all tags with format: "tagname|type|commit|date|tagger|message"
+      const tagsOutput = await git.raw([
+        'tag',
+        '-l',
+        '--format=%(refname:short)|%(objecttype)|%(objectname:short)|%(creatordate:iso8601)|%(taggername)|%(subject)',
+        '--sort=-creatordate'
+      ]);
+
+      if (!tagsOutput.trim()) {
+        return [];
+      }
+
+      const tags: TagInfo[] = [];
+      const lines = tagsOutput.trim().split('\n');
+
+      for (const line of lines) {
+        const [name, objType, commit, dateStr, tagger, message] = line.split('|');
+        
+        // Determine if it's an annotated tag
+        const type = objType === 'tag' ? 'annotated' : 'lightweight';
+        
+        tags.push({
+          name,
+          commit,
+          type,
+          message: message || undefined,
+          tagger: tagger || undefined,
+          date: dateStr ? new Date(dateStr) : undefined,
+        });
+      }
+
+      return tags;
+    } catch (error) {
+      logger.error('Failed to get tags:', error);
+      return [];
+    }
+  }
+
+  async getStashes(repoPath: string): Promise<StashEntry[]> {
+    const git = this.getGit(repoPath);
+    
+    try {
+      // Get stash list with format: "index|branch|date|message"
+      const stashOutput = await git.raw([
+        'stash',
+        'list',
+        '--format=%gd|%D|%ci|%s'
+      ]);
+
+      if (!stashOutput.trim()) {
+        return [];
+      }
+
+      const stashes: StashEntry[] = [];
+      const lines = stashOutput.trim().split('\n');
+
+      for (const line of lines) {
+        const parts = line.split('|');
+        if (parts.length < 4) continue;
+
+        const [indexStr, refs, dateStr, ...messageParts] = parts;
+        const message = messageParts.join('|'); // In case message contains |
+
+        // Extract index number from "stash@{0}"
+        const indexMatch = indexStr.match(/stash@\{(\d+)\}/);
+        const index = indexMatch ? parseInt(indexMatch[1], 10) : 0;
+
+        // Extract branch name from refs like "refs/stash, origin/main, main"
+        let branch = 'unknown';
+        const branchMatch = refs.match(/(?:^|, )([^,]+?)(?:,|$)/);
+        if (branchMatch && branchMatch[1] && !branchMatch[1].includes('stash')) {
+          branch = branchMatch[1].trim();
+        }
+
+        stashes.push({
+          index,
+          message,
+          branch,
+          date: new Date(dateStr),
+        });
+      }
+
+      return stashes;
+    } catch (error) {
+      logger.error('Failed to get stashes:', error);
+      return [];
     }
   }
 
