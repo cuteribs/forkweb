@@ -1,0 +1,13 @@
+@host = http://localhost:5001
+
+GET {{host}}/swagger/v1/swagger.json
+Accept: application/json
+
+###
+
+POST {{host}}/api/repos
+Content-Type: application/json
+
+{
+  "path": "C:\\git\\dnv\\test\\temp1"
+}

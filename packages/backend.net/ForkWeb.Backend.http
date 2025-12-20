@@ -1,6 +1,0 @@
-@ForkWeb.Backend_HostAddress = http://localhost:5145
-
-GET {{ForkWeb.Backend_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
