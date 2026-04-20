@@ -14,7 +14,7 @@
     "@forkweb/shared": "workspace:*",
     "@vscode/codicons": "0.0.41",
     "@vueuse/core": "^10.7.0",
-    "axios": "^1.6.0",
+    "axios": "^1.15.0",
     "pinia": "^2.1.7",
     "socket.io-client": "^4.6.0",
     "vue": "^3.4.0",
